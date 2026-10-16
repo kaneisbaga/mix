@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雙影片同步對比播放器 (0 距離無縫貼合版)</title>
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-card: #1e293b;
+            --bg-input: #0f172a;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #38bdf8;
+            --btn-blue: #0284c7;
+            --btn-green: #16a34a;
+            --btn-orange: #ea580c;
+            --border-color: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 8px 12px;
+            overflow-x: hidden;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 6px 8px 6px;
+        }
+
+        header h1 {
+            font-size: 17px;
+            color: var(--accent-blue);
+            font-weight: 700;
+        }
+
+        header .hints {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* 頂部影片控制列 */
+        .top-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+        .top-channel {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 6px 12px;
+        }
+
+        .channel-title {
+            font-weight: bold;
+            font-size: 14px;
+            color: var(--accent-blue);
+            white-space: nowrap;
+        }
+
+        .btn-file {
+            background: #334155;
+            color: #fff;
+            border: 1px solid #475569;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .btn-file:hover {
+            background: #475569;
+            border-color: var(--accent-blue);
+        }
+
+        .file-name {
+            font-size: 12px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+
+        .check-container {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            color: #cbd5e1;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .check-container input {
+            cursor: pointer;
+            accent-color: var(--accent-blue);
+        }
+
+        /* ★★★ 0 距離無縫視訊對比舞台 ★★★ */
+        .video-stage-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+            min-height: 480px;
+        }
+
+        .seamless-stage {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            gap: 0px; /* 關鍵：0 距離無縫隙 */
+            margin: 0px;
+            padding: 0px;
+            position: relative;
+        }
+
+        .video-half {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        .video-half.left-half {
+            justify-content: flex-end; /* 讓影片畫面緊貼右邊緣 */
+        }
+
+        .video-half.right-half {
+            justify-content: flex-start; /* 讓影片畫面緊貼左邊緣 */
+        }
+
+        video {
+            height: 100%;
+            max-height: 64vh;
+            object-fit: contain;
+            background: #000;
+            margin: 0;
+            padding: 0;
+            display: block;
+        }
+
+        #video1 {
+            object-position: right center; /* 關鍵：畫面靠右無縫相接 */
+        }
+
+        #video2 {
+            object-position: left center; /* 關鍵：畫面靠左無縫相接 */
+        }
+
+        /* 1px 對比中線 (可選) */
+        .divider-line {
+            width: 1px;
+            height: 100%;
+            background: #38bdf8;
+            position: absolute;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: none;
+        }
+
+        .drop-hint {
+            position: absolute;
+            color: #64748b;
+            font-size: 15px;
+            pointer-events: none;
+            text-align: center;
+            line-height: 1.6;
+            z-index: 5;
+        }
+
+        /* 兩支影片各自下方控制列 */
+        .bottom-channels-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 6px;
+        }
+
+        .channel-bottom-card {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 6px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .channel-info-row {
+            font-size: 12px;
+            font-family: Consolas, monospace;
+            color: #cbd5e1;
+        }
+
+        .start-time-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .start-time-bar label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #f1f5f9;
+        }
+
+        .time-input {
+            background: #020617;
+            border: 1px solid #475569;
+            color: var(--accent-blue);
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 3px 6px;
+            border-radius: 4px;
+            width: 90px;
+            text-align: center;
+        }
+
+        .time-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .btn-small {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-small:hover {
+            background: #475569;
+            color: #fff;
+        }
+
+        .btn-apply {
+            background: var(--btn-blue);
+            color: #fff;
+            border: none;
+            font-weight: bold;
+        }
+
+        .btn-apply:hover {
+            background: #0369a1;
+        }
+
+        /* 影片中央下方控制區塊 */
+        .center-controls-panel {
+            margin-top: 6px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .timeline-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+        }
+
+        .timeline-slider {
+            flex: 1;
+            accent-color: var(--accent-blue);
+            cursor: pointer;
+            height: 6px;
+        }
+
+        .buttons-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-main-play {
+            background: var(--btn-green);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 9px 18px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-main-play:hover {
+            background: #15803d;
+        }
+
+        .btn-main-pause {
+            background: var(--btn-orange);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 9px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-main-pause:hover {
+            background: #c2410c;
+        }
+
+        .btn-ctrl {
+            background: #334155;
+            color: #f8fafc;
+            border: 1px solid #475569;
+            border-radius: 5px;
+            padding: 7px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-ctrl:hover {
+            background: #475569;
+        }
+
+        .select-speed {
+            background: #334155;
+            color: #fff;
+            border: 1px solid #475569;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        /* YouTube 風格全螢幕樣式 */
+        body.is-fullscreen {
+            padding: 0 !important;
+            margin: 0 !important;
+            overflow: hidden !important;
+        }
+
+        body.is-fullscreen header,
+        body.is-fullscreen .top-row {
+            display: none !important;
+        }
+
+        body.is-fullscreen .video-stage-wrapper {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            border: none !important;
+            border-radius: 0 !important;
+            z-index: 100 !important;
+            background: #000 !important;
+        }
+
+        body.is-fullscreen video {
+            max-height: 100vh !important; /* 全螢幕時讓影片垂直高度無限制放大至 100vh */
+        }
+
+        body.fill-mode video {
+            object-fit: cover !important; /* 滿版放大模式：填滿不留黑邊 */
+        }
+
+        body.is-fullscreen .fullscreen-overlay-container {
+            position: fixed !important;
+            bottom: 24px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            width: min(1280px, calc(100vw - 48px)) !important;
+            z-index: 200 !important;
+            background: rgba(15, 23, 42, 0.78) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            border: 1px solid rgba(56, 189, 248, 0.45) !important;
+            border-radius: 12px !important;
+            padding: 10px 16px !important;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75) !important;
+            transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.35s ease !important;
+            pointer-events: auto !important;
+        }
+
+        body.is-fullscreen.hide-controls .fullscreen-overlay-container {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transform: translateX(-50%) translateY(10px) !important;
+        }
+
+        body.is-fullscreen.hide-controls {
+            cursor: none !important;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>雙影片同步對比播放器 (0 距離無縫貼合版)</h1>
+        <div class="hints">快捷鍵：[空白鍵] 播放/暫停 | [F] 全螢幕 | [Esc] 退出全螢幕 | [← / →] 微調時間 | [Home] 回到起點</div>
+    </header>
+
+    <!-- 頂部資訊列：左影片與右影片並排 -->
+    <div class="top-row">
+        <div class="top-channel">
+            <span class="channel-title">影片 1 (左側)</span>
+            <label class="btn-file">
+                📂 選擇影片
+                <input type="file" id="fileInput1" accept="video/*" style="display:none;" onchange="loadVideoFile(1, this.files[0])">
+            </label>
+            <span class="file-name" id="fileName1">尚未載入影片 (可拖曳至畫面)</span>
+            <label class="check-container">
+                <input type="checkbox" id="mute1" onchange="toggleMute(1, this.checked)"> 靜音
+            </label>
+        </div>
+
+        <div class="top-channel">
+            <span class="channel-title">影片 2 (右側)</span>
+            <label class="btn-file">
+                📂 選擇影片
+                <input type="file" id="fileInput2" accept="video/*" style="display:none;" onchange="loadVideoFile(2, this.files[0])">
+            </label>
+            <span class="file-name" id="fileName2">尚未載入影片 (可拖曳至畫面)</span>
+            <label class="check-container">
+                <input type="checkbox" id="mute2" onchange="toggleMute(2, this.checked)"> 靜音
+            </label>
+        </div>
+    </div>
+
+    <!-- ★★★ 0 距離無縫對比舞台 ★★★ -->
+    <div class="video-stage-wrapper" id="stageWrapper">
+        <div class="drop-hint" id="dropHint">可直接將左、右兩支影片拖曳進來對比<br>兩影片將在正中央 0 距離無縫貼合 (支援雙擊切換全螢幕)</div>
+        <div class="divider-line" id="dividerLine"></div>
+
+        <div class="seamless-stage" id="stage">
+            <div class="video-half left-half" id="half1">
+                <video id="video1" playsinline></video>
+            </div>
+            <div class="video-half right-half" id="half2">
+                <video id="video2" playsinline></video>
+            </div>
+        </div>
+    </div>
+
+    <!-- 浮動控制層容器 (視窗模式為標準排版，全螢幕時為 YouTube 懸浮覆蓋層) -->
+    <div class="fullscreen-overlay-container" id="controlsOverlay">
+        <!-- 兩支影片各自下方的控制列 -->
+        <div class="bottom-channels-row">
+            <!-- 左影片下方控制區塊 -->
+            <div class="channel-bottom-card">
+                <div class="channel-info-row">
+                    <span id="timeStatus1">當前時間: 00:00.000 / 00:00.000</span>
+                </div>
+                <div class="start-time-bar">
+                    <label>起始時間點:</label>
+                    <input type="text" class="time-input" id="startTime1" value="00:00.000" onkeydown="if(event.key==='Enter') applyStartTime(1)">
+                    <button class="btn-small btn-apply" onclick="applyStartTime(1)">套用</button>
+                    <button class="btn-small" onclick="setCurrentAsStart(1)">📌 設為當前</button>
+                    <button class="btn-small" onclick="stepStartTime(1, -1)">-1s</button>
+                    <button class="btn-small" onclick="stepStartTime(1, -0.1)">-0.1s</button>
+                    <button class="btn-small" onclick="stepStartTime(1, 0.1)">+0.1s</button>
+                    <button class="btn-small" onclick="stepStartTime(1, 1)">+1s</button>
+                </div>
+            </div>
+
+            <!-- 右影片下方控制區塊 -->
+            <div class="channel-bottom-card">
+                <div class="channel-info-row">
+                    <span id="timeStatus2">當前時間: 00:00.000 / 00:00.000</span>
+                </div>
+                <div class="start-time-bar">
+                    <label>起始時間點:</label>
+                    <input type="text" class="time-input" id="startTime2" value="00:00.000" onkeydown="if(event.key==='Enter') applyStartTime(2)">
+                    <button class="btn-small btn-apply" onclick="applyStartTime(2)">套用</button>
+                    <button class="btn-small" onclick="setCurrentAsStart(2)">📌 設為當前</button>
+                    <button class="btn-small" onclick="stepStartTime(2, -1)">-1s</button>
+                    <button class="btn-small" onclick="stepStartTime(2, -0.1)">-0.1s</button>
+                    <button class="btn-small" onclick="stepStartTime(2, 0.1)">+0.1s</button>
+                    <button class="btn-small" onclick="stepStartTime(2, 1)">+1s</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 影片中央下方控制區塊 -->
+        <div class="center-controls-panel">
+            <div class="timeline-row">
+                <span id="syncCurrentTime" style="color:var(--accent-blue); font-weight:bold;">00:00.000</span>
+                <input type="range" class="timeline-slider" id="syncSlider" min="0" max="1000" value="0" step="1">
+                <span id="syncTotalTime" style="color:var(--text-muted);">00:00.000</span>
+            </div>
+
+            <div class="buttons-row">
+                <button class="btn-ctrl" onclick="resetToStart()">⏮ 回到起始點</button>
+                <button class="btn-ctrl" onclick="stepSync(-0.033)">◀ 上一格</button>
+                <button class="btn-main-play" id="btnPlay" onclick="playSync()">▶ 開始播放</button>
+                <button class="btn-main-pause" id="btnPause" onclick="pauseSync()">⏸ 暫停</button>
+                <button class="btn-ctrl" onclick="stepSync(0.033)">下一格 ▶</button>
+
+                <label class="check-container" style="margin-left: 6px;">
+                    <input type="checkbox" id="chkLoop" checked> 循環播放
+                </label>
+
+                <label class="check-container" style="margin-left: 6px; color:#a78bfa; font-weight:bold;">
+                    <input type="checkbox" id="chkFill" onchange="toggleFillMode(this.checked)"> 滿版放大
+                </label>
+
+                <label class="check-container" style="margin-left: 6px;">
+                    <input type="checkbox" id="chkDivider" onchange="toggleDivider(this.checked)"> 1px 參考線
+                </label>
+
+                <label style="margin-left: 6px; font-size:12px; color:var(--text-muted);">倍速:</label>
+                <select class="select-speed" id="speedSelect" onchange="changePlaybackRate(this.value)">
+                    <option value="0.25">0.25x</option>
+                    <option value="0.5">0.5x</option>
+                    <option value="1.0" selected>1.0x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2.0">2.0x</option>
+                </select>
+
+                <!-- ★ 全螢幕切換按鈕 (YouTube 風格) -->
+                <button class="btn-ctrl" id="btnFullscreen" onclick="toggleFullscreen()" style="background:#0284c7; border-color:#38bdf8; font-weight:bold; margin-left:6px;">⛶ 全螢幕 (F)</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const v1 = document.getElementById('video1');
+        const v2 = document.getElementById('video2');
+        let start1 = 0;
+        let start2 = 0;
+        let isPlaying = false;
+        let isScrubbing = false;
+        let syncDuration = 0;
+        let relativePos = 0;
+
+        function formatSeconds(sec) {
+            if (isNaN(sec) || sec < 0) sec = 0;
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            const ms = Math.floor((s - Math.floor(s)) * 1000);
+            return `${String(m).padStart(2, '0')}:${String(Math.floor(s)).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+        }
+
+        function parseTimeString(str) {
+            str = (str || '').trim();
+            if (!str) return 0;
+            const parts = str.split(':');
+            try {
+                if (parts.length === 1) return Math.max(0, parseFloat(parts[0]) || 0);
+                if (parts.length === 2) return Math.max(0, (parseFloat(parts[0]) * 60) + (parseFloat(parts[1]) || 0));
+                if (parts.length === 3) return Math.max(0, (parseFloat(parts[0]) * 3600) + (parseFloat(parts[1]) * 60) + (parseFloat(parts[2]) || 0));
+            } catch (e) {
+                return 0;
+            }
+            return 0;
+        }
+
+        function loadVideoFile(id, file) {
+            if (!file) return;
+            const video = id === 1 ? v1 : v2;
+            const nameEl = document.getElementById(`fileName${id}`);
+            const hintEl = document.getElementById('dropHint');
+
+            nameEl.textContent = file.name;
+            nameEl.title = file.name;
+            hintEl.style.display = 'none';
+
+            const url = URL.createObjectURL(file);
+            video.src = url;
+            video.load();
+            video.onloadedmetadata = () => {
+                updateTimeStatus(id);
+                applyStartTime(id);
+                recalcSyncDuration();
+                adjustVideoWidths();
+            };
+        }
+
+        function adjustVideoWidths() {
+            // 自動計算讓兩支影片高度一致，左右寬度依各自比例延伸，中央無縫相接
+            if (v1.videoWidth && v2.videoWidth) {
+                const r1 = v1.videoWidth / v1.videoHeight;
+                const r2 = v2.videoWidth / v2.videoHeight;
+                document.getElementById('half1').style.flex = r1;
+                document.getElementById('half2').style.flex = r2;
+            }
+        }
+
+        function updateTimeStatus(id) {
+            const video = id === 1 ? v1 : v2;
+            const lbl = document.getElementById(`timeStatus${id}`);
+            lbl.textContent = `當前時間: ${formatSeconds(video.currentTime)} / ${formatSeconds(video.duration || 0)}`;
+        }
+
+        function applyStartTime(id) {
+            const input = document.getElementById(`startTime${id}`);
+            const val = parseTimeString(input.value);
+            const video = id === 1 ? v1 : v2;
+            const dur = video.duration || 0;
+            const clamped = dur > 0 ? Math.min(val, dur) : val;
+
+            if (id === 1) start1 = clamped;
+            else start2 = clamped;
+
+            input.value = formatSeconds(clamped);
+            video.currentTime = clamped;
+            updateTimeStatus(id);
+            recalcSyncDuration();
+        }
+
+        function setCurrentAsStart(id) {
+            const video = id === 1 ? v1 : v2;
+            const cur = video.currentTime;
+            if (id === 1) start1 = cur;
+            else start2 = cur;
+            document.getElementById(`startTime${id}`).value = formatSeconds(cur);
+            recalcSyncDuration();
+        }
+
+        function stepStartTime(id, deltaSec) {
+            const video = id === 1 ? v1 : v2;
+            let curStart = id === 1 ? start1 : start2;
+            curStart = Math.max(0, curStart + deltaSec);
+            if (video.duration) curStart = Math.min(curStart, video.duration);
+
+            if (id === 1) start1 = curStart;
+            else start2 = curStart;
+
+            document.getElementById(`startTime${id}`).value = formatSeconds(curStart);
+            video.currentTime = curStart;
+            updateTimeStatus(id);
+            recalcSyncDuration();
+        }
+
+        function recalcSyncDuration() {
+            const d1 = Math.max(0, (v1.duration || 0) - start1);
+            const d2 = Math.max(0, (v2.duration || 0) - start2);
+            syncDuration = Math.max(d1, d2, 1);
+
+            const slider = document.getElementById('syncSlider');
+            slider.max = Math.floor(syncDuration * 1000);
+            document.getElementById('syncTotalTime').textContent = formatSeconds(syncDuration);
+            updateSliderUI();
+        }
+
+        function updateSliderUI() {
+            if (!isScrubbing) {
+                document.getElementById('syncSlider').value = Math.floor(relativePos * 1000);
+            }
+            document.getElementById('syncCurrentTime').textContent = formatSeconds(relativePos);
+        }
+
+        function seekBoth(relSec) {
+            relativePos = Math.max(0, relSec);
+            if (v1.duration) v1.currentTime = Math.min(start1 + relativePos, v1.duration);
+            if (v2.duration) v2.currentTime = Math.min(start2 + relativePos, v2.duration);
+            updateTimeStatus(1);
+            updateTimeStatus(2);
+            updateSliderUI();
+        }
+
+        function playSync() {
+            const rate = parseFloat(document.getElementById('speedSelect').value);
+            v1.playbackRate = rate;
+            v2.playbackRate = rate;
+
+            if (syncDuration > 0 && relativePos >= syncDuration) {
+                seekBoth(0);
+            }
+
+            Promise.all([
+                v1.src ? v1.play().catch(()=>{}) : Promise.resolve(),
+                v2.src ? v2.play().catch(()=>{}) : Promise.resolve()
+            ]).then(() => {
+                isPlaying = true;
+            });
+        }
+
+        function pauseSync() {
+            v1.pause();
+            v2.pause();
+            isPlaying = false;
+        }
+
+        function resetToStart() {
+            pauseSync();
+            applyStartTime(1);
+            applyStartTime(2);
+            seekBoth(0);
+        }
+
+        function stepSync(deltaSec) {
+            pauseSync();
+            seekBoth(relativePos + deltaSec);
+        }
+
+        function changePlaybackRate(rate) {
+            const r = parseFloat(rate);
+            v1.playbackRate = r;
+            v2.playbackRate = r;
+        }
+
+        function toggleMute(id, muted) {
+            const v = id === 1 ? v1 : v2;
+            v.muted = muted;
+        }
+
+        function toggleDivider(show) {
+            document.getElementById('dividerLine').style.display = show ? 'block' : 'none';
+        }
+
+        function toggleFillMode(fill) {
+            if (fill) {
+                document.body.classList.add('fill-mode');
+            } else {
+                document.body.classList.remove('fill-mode');
+            }
+        }
+
+        // 同步狀態檢查與校正
+        setInterval(() => {
+            if (!isPlaying || isScrubbing) return;
+            const rel1 = Math.max(0, v1.currentTime - start1);
+            const rel2 = Math.max(0, v2.currentTime - start2);
+
+            const refRel = v1.duration ? rel1 : rel2;
+            relativePos = refRel;
+
+            if (v1.duration && v2.duration && !v1.paused && !v2.paused) {
+                const diff = Math.abs(rel1 - rel2);
+                if (diff > 0.08) {
+                    v2.currentTime = Math.min(start2 + refRel, v2.duration);
+                }
+            }
+
+            updateTimeStatus(1);
+            updateTimeStatus(2);
+            updateSliderUI();
+
+            if (syncDuration > 0 && relativePos >= syncDuration) {
+                if (document.getElementById('chkLoop').checked) {
+                    resetToStart();
+                    playSync();
+                } else {
+                    pauseSync();
+                }
+            }
+        }, 100);
+
+        // 進度條事件
+        const slider = document.getElementById('syncSlider');
+        slider.addEventListener('input', (e) => {
+            isScrubbing = true;
+            const rel = e.target.value / 1000;
+            seekBoth(rel);
+        });
+        slider.addEventListener('change', (e) => {
+            isScrubbing = false;
+            const rel = e.target.value / 1000;
+            seekBoth(rel);
+        });
+
+        // 快捷鍵
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                isPlaying ? pauseSync() : playSync();
+            } else if (e.code === 'KeyF') {
+                e.preventDefault();
+                toggleFullscreen();
+            } else if (e.code === 'ArrowLeft') {
+                stepSync(-0.1);
+            } else if (e.code === 'ArrowRight') {
+                stepSync(0.1);
+            } else if (e.code === 'Home') {
+                resetToStart();
+            }
+        });
+
+        // ========== YouTube 全螢幕模式邏輯 ==========
+        let hideControlsTimer = null;
+        let isFullscreen = false;
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.warn("Fullscreen request error:", err);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        document.addEventListener('fullscreenchange', () => {
+            isFullscreen = !!document.fullscreenElement;
+            const btnFs = document.getElementById('btnFullscreen');
+            if (isFullscreen) {
+                document.body.classList.add('is-fullscreen');
+                if (btnFs) {
+                    btnFs.textContent = '🗗 退出全螢幕 (F)';
+                    btnFs.style.background = '#475569';
+                    btnFs.style.borderColor = '#94a3b8';
+                }
+                resetControlsTimer();
+            } else {
+                document.body.classList.remove('is-fullscreen');
+                document.body.classList.remove('hide-controls');
+                if (btnFs) {
+                    btnFs.textContent = '⛶ 全螢幕 (F)';
+                    btnFs.style.background = '#0284c7';
+                    btnFs.style.borderColor = '#38bdf8';
+                }
+                clearTimeout(hideControlsTimer);
+            }
+            adjustVideoStage();
+        });
+
+        function resetControlsTimer() {
+            if (!isFullscreen) return;
+            document.body.classList.remove('hide-controls');
+            clearTimeout(hideControlsTimer);
+            hideControlsTimer = setTimeout(() => {
+                if (isFullscreen && !isScrubbing) {
+                    const overlay = document.getElementById('controlsOverlay');
+                    const hovered = overlay ? overlay.matches(':hover') : false;
+                    const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT';
+                    if (!hovered && !activeInput) {
+                        document.body.classList.add('hide-controls');
+                    } else {
+                        resetControlsTimer();
+                    }
+                }
+            }, 2500);
+        }
+
+        window.addEventListener('mousemove', () => {
+            if (isFullscreen) resetControlsTimer();
+        });
+
+        // 雙擊畫面切換全螢幕 (YouTube 行為)
+        const stageWrapper = document.getElementById('stageWrapper');
+        stageWrapper.addEventListener('dblclick', () => {
+            toggleFullscreen();
+        });
+
+        // 拖曳檔案處理 (左半部載入影片 1，右半部載入影片 2)
+        stageWrapper.addEventListener('dragover', (e) => e.preventDefault());
+        stageWrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const rect = stageWrapper.getBoundingClientRect();
+                const dropX = e.clientX - rect.left;
+                if (e.dataTransfer.files.length >= 2) {
+                    loadVideoFile(1, e.dataTransfer.files[0]);
+                    loadVideoFile(2, e.dataTransfer.files[1]);
+                } else {
+                    const id = dropX < rect.width / 2 ? 1 : 2;
+                    loadVideoFile(id, e.dataTransfer.files[0]);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
